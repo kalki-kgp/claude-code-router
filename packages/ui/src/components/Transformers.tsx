@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -26,14 +25,10 @@ export function Transformers() {
   // Handle case where config is null or undefined
   if (!config) {
     return (
-      <Card className="flex h-full flex-col rounded-lg border shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between border-b p-4">
-          <CardTitle className="text-lg">{t("transformers.title")}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-grow flex items-center justify-center p-4">
-          <div className="text-gray-500">Loading transformers configuration...</div>
-        </CardContent>
-      </Card>
+      <section className="panel p-5">
+        <div className="label-micro">Custom Transformers</div>
+        <div className="mt-3 text-data text-text-mid">Loading…</div>
+      </section>
     );
   }
 
@@ -101,18 +96,29 @@ export function Transformers() {
   };
 
   return (
-    <Card className="flex h-full flex-col rounded-lg border shadow-sm">
-      <CardHeader className="flex flex-row items-center justify-between border-b p-4">
-        <CardTitle className="text-lg">{t("transformers.title")} <span className="text-sm font-normal text-gray-500">({validTransformers.length})</span></CardTitle>
-        <Button onClick={handleAddTransformer}>{t("transformers.add")}</Button>
-      </CardHeader>
-      <CardContent className="flex-grow overflow-y-auto p-4">
+    <section className="panel flex flex-col overflow-hidden">
+      <header className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
+        <div className="flex items-center gap-2">
+          <span className="label-micro">Custom Transformers</span>
+          <span className="font-mono text-[10.5px] tracking-[0.12em] text-text-dim">
+            {validTransformers.length}
+          </span>
+        </div>
+        <button
+          onClick={handleAddTransformer}
+          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-hairline-strong px-2.5 text-[11px] font-medium text-text-mid transition hover:bg-surface-elevated hover:text-foreground"
+        >
+          <Plus className="h-3 w-3" />
+          {t("transformers.add")}
+        </button>
+      </header>
+      <div className="flex-1 overflow-y-auto">
         <TransformerList
           transformers={validTransformers}
           onEdit={setEditingTransformerIndex}
           onRemove={setDeletingTransformerIndex}
         />
-      </CardContent>
+      </div>
 
       {/* Edit Dialog */}
       <Dialog open={editingTransformerIndex !== null} onOpenChange={handleCancelTransformer}>
@@ -231,6 +237,6 @@ export function Transformers() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </section>
   );
 }

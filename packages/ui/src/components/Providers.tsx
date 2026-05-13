@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -76,14 +75,10 @@ export function Providers() {
   // Handle case where config is null or undefined
   if (!config) {
     return (
-      <Card className="flex h-full flex-col rounded-lg border shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between border-b p-4">
-          <CardTitle className="text-lg">{t("providers.title")}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-grow flex items-center justify-center p-4">
-          <div className="text-gray-500">Loading providers configuration...</div>
-        </CardContent>
-      </Card>
+      <section className="panel p-5">
+        <div className="label-micro">Providers</div>
+        <div className="mt-3 text-data text-text-mid">Loading providers…</div>
+      </section>
     );
   }
 
@@ -519,40 +514,48 @@ export function Providers() {
   });
 
   return (
-    <Card className="flex h-full flex-col rounded-lg border shadow-sm">
-      <CardHeader className="flex flex-col border-b p-4 gap-3">
-        <div className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg">{t("providers.title")} <span className="text-sm font-normal text-gray-500">({filteredProviders.length}/{validProviders.length})</span></CardTitle>
-          <Button onClick={handleAddProvider}>{t("providers.add")}</Button>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-            <Input
-              placeholder={t("providers.search")}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
+    <section className="panel flex flex-col overflow-hidden">
+      <header className="flex flex-col gap-3 border-b border-hairline px-5 py-3.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="label-micro">Providers</span>
+            <span className="font-mono text-[10.5px] tracking-[0.12em] text-text-dim">
+              {filteredProviders.length}/{validProviders.length}
+            </span>
           </div>
+          <button
+            onClick={handleAddProvider}
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-hairline-strong px-2.5 text-[11px] font-medium text-text-mid transition hover:bg-surface-elevated hover:text-foreground"
+          >
+            <Plus className="h-3 w-3" />
+            {t("providers.add")}
+          </button>
+        </div>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-dim" />
+          <input
+            placeholder={t("providers.search")}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="h-8 w-full rounded-md border border-hairline bg-surface-sunken pl-8 pr-7 text-[12px] text-text-strong placeholder:text-text-dim outline-none transition focus:border-hairline-strong"
+          />
           {searchTerm && (
-            <Button 
-              variant="ghost" 
-              size="icon"
+            <button
               onClick={() => setSearchTerm("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-text-dim hover:text-foreground"
             >
-              <XCircle className="h-4 w-4" />
-            </Button>
+              <XCircle className="h-3.5 w-3.5" />
+            </button>
           )}
         </div>
-      </CardHeader>
-      <CardContent className="flex-grow overflow-y-auto p-4">
+      </header>
+      <div className="flex-1 overflow-y-auto">
         <ProviderList
           providers={filteredProviders}
           onEdit={handleEditProvider}
           onRemove={handleSetDeletingProviderIndex}
         />
-      </CardContent>
+      </div>
 
       {/* Edit Dialog */}
       <Dialog open={editingProviderIndex !== null} onOpenChange={(open) => {
@@ -1054,6 +1057,6 @@ export function Providers() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </section>
   );
 }

@@ -1,6 +1,4 @@
-import { Pencil, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Pencil, Trash2, Plug } from "lucide-react";
 import type { Provider } from "@/types";
 
 interface ProviderListProps {
@@ -10,74 +8,111 @@ interface ProviderListProps {
 }
 
 export function ProviderList({ providers, onEdit, onRemove }: ProviderListProps) {
-  // Handle case where providers might be null or undefined
-  if (!providers || !Array.isArray(providers)) {
+  if (!providers || !Array.isArray(providers) || providers.length === 0) {
     return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-center rounded-md border bg-white p-8 text-gray-500">
-          No providers configured
+      <div className="flex flex-col items-center justify-center gap-2 px-5 py-12 text-center">
+        <Plug className="h-5 w-5 text-text-dim" />
+        <div className="text-data text-text-mid">No providers configured</div>
+        <div className="text-[11.5px] text-text-dim">
+          Add a provider above to define where requests are sent.
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="divide-y divide-hairline">
       {providers.map((provider, index) => {
-        // Handle case where individual provider might be null or undefined
         if (!provider) {
           return (
-            <div key={index} className="flex items-start justify-between rounded-md border bg-white p-4 transition-all hover:shadow-md animate-slide-in hover:scale-[1.01]">
-              <div className="flex-1 space-y-1.5">
-                <p className="text-md font-semibold text-gray-800">Invalid Provider</p>
-                <p className="text-sm text-gray-500">Provider data is missing</p>
-              </div>
-              <div className="ml-4 flex flex-shrink-0 items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={() => onEdit(index)} className="transition-all-ease hover:scale-110" disabled>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button variant="destructive" size="icon" onClick={() => onRemove(index)} className="transition-all duration-200 hover:scale-110">
-                  <Trash2 className="h-4 w-4 text-current transition-colors duration-200" />
-                </Button>
+            <div key={index} className="px-5 py-4">
+              <div className="text-[12.5px] text-coral">Invalid provider data</div>
+              <div className="mt-2 flex justify-end gap-1">
+                <IconButton onClick={() => onEdit(index)} disabled>
+                  <Pencil className="h-3.5 w-3.5" />
+                </IconButton>
+                <IconButton variant="danger" onClick={() => onRemove(index)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </IconButton>
               </div>
             </div>
           );
         }
 
-        // Handle case where provider.name might be null or undefined
-        const providerName = provider.name || "Unnamed Provider";
-        
-        // Handle case where provider.api_base_url might be null or undefined
-        const apiBaseUrl = provider.api_base_url || "No API URL";
-        
-        // Handle case where provider.models might be null or undefined
+        const providerName = provider.name || "unnamed";
+        const apiBaseUrl = provider.api_base_url || "no API URL";
         const models = Array.isArray(provider.models) ? provider.models : [];
+        const transformerCount = Array.isArray(provider.transformer?.use)
+          ? provider.transformer!.use.length
+          : 0;
+        const isCodex = providerName.toLowerCase() === "codex";
 
         return (
-          <div key={index} className="flex items-start justify-between rounded-md border bg-white p-4 transition-all hover:shadow-md animate-slide-in hover:scale-[1.01]">
-            <div className="flex-1 space-y-1.5">
-              <p className="text-md font-semibold text-gray-800">{providerName}</p>
-              <p className="text-sm text-gray-500">{apiBaseUrl}</p>
-              <div className="flex flex-wrap gap-2 pt-2">
-                {models.map((model, modelIndex) => (
-                  // Handle case where model might be null or undefined
-                  <Badge key={modelIndex} variant="outline" className="font-normal transition-all-ease hover:scale-105">
-                    {model || "Unnamed Model"}
-                  </Badge>
-                ))}
+          <div key={index} className="group px-5 py-4 transition hover:bg-[oklch(1_0_0_/_1.5%)]">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className={`status-dot ${isCodex ? "" : "is-off"}`} />
+                  <span className="text-[13px] font-medium text-text-strong">{providerName}</span>
+                  {isCodex && <span className="chip is-mint">primary</span>}
+                  {transformerCount > 0 && (
+                    <span className="chip">{transformerCount} transformer{transformerCount > 1 ? "s" : ""}</span>
+                  )}
+                </div>
+                <div className="mt-1 truncate font-mono text-[11px] text-text-dim">{apiBaseUrl}</div>
+
+                {models.length > 0 && (
+                  <div className="mt-2.5 flex flex-wrap gap-1">
+                    {models.slice(0, 14).map((model, mi) => (
+                      <span key={mi} className="chip">
+                        {model || "unknown"}
+                      </span>
+                    ))}
+                    {models.length > 14 && (
+                      <span className="chip">+{models.length - 14}</span>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-            <div className="ml-4 flex flex-shrink-0 items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={() => onEdit(index)} className="transition-all-ease hover:scale-110">
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button variant="destructive" size="icon" onClick={() => onRemove(index)} className="transition-all duration-200 hover:scale-110">
-                <Trash2 className="h-4 w-4 text-current transition-colors duration-200" />
-              </Button>
+
+              <div className="flex shrink-0 items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                <IconButton onClick={() => onEdit(index)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </IconButton>
+                <IconButton variant="danger" onClick={() => onRemove(index)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </IconButton>
+              </div>
             </div>
           </div>
         );
       })}
     </div>
+  );
+}
+
+function IconButton({
+  children,
+  onClick,
+  disabled,
+  variant = "default",
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: "default" | "danger";
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-text-mid transition disabled:opacity-40 ${
+        variant === "danger"
+          ? "hover:bg-[oklch(0.30_0.10_25_/_30%)] hover:text-coral"
+          : "hover:bg-surface-elevated hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
