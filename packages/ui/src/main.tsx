@@ -7,6 +7,9 @@ import { RouterProvider } from 'react-router-dom';
 import { router } from './routes';
 import { ConfigProvider } from '@/components/ConfigProvider';
 
+// Terminal Forge: dark theme is the only theme
+document.documentElement.classList.add('dark');
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ConfigProvider>

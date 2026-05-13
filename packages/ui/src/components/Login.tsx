@@ -1,134 +1,116 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { api } from '@/lib/api';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { api } from "@/lib/api";
+import { ArrowRight, KeyRound } from "lucide-react";
 
 export function Login() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [apiKey, setApiKey] = useState('');
-  const [error, setError] = useState('');
+  const [apiKey, setApiKey] = useState("");
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Check if user is already authenticated
   useEffect(() => {
     const checkAuth = async () => {
-      const apiKey = localStorage.getItem('apiKey');
-      if (apiKey) {
+      const stored = localStorage.getItem("apiKey");
+      if (stored) {
         setIsLoading(true);
-        // Verify the API key is still valid
         try {
           await api.getConfig();
-          navigate('/dashboard');
+          navigate("/dashboard");
         } catch {
-          // If verification fails, remove the API key
-          localStorage.removeItem('apiKey');
+          localStorage.removeItem("apiKey");
         } finally {
           setIsLoading(false);
         }
       }
     };
-
     checkAuth();
-    
-    // Listen for unauthorized events
-    const handleUnauthorized = () => {
-      navigate('/login');
-    };
-    
-    window.addEventListener('unauthorized', handleUnauthorized);
-    
-    return () => {
-      window.removeEventListener('unauthorized', handleUnauthorized);
-    };
+    const onUnauth = () => navigate("/login");
+    window.addEventListener("unauthorized", onUnauth);
+    return () => window.removeEventListener("unauthorized", onUnauth);
   }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     try {
-      // Set the API key
       api.setApiKey(apiKey);
-      
-      // Dispatch storage event to notify other components of the change
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: 'apiKey',
-        newValue: apiKey,
-        url: window.location.href
-      }));
-      
-      // Test the API key by fetching config
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "apiKey",
+          newValue: apiKey,
+          url: window.location.href,
+        })
+      );
       await api.getConfig();
-      
-      // Navigate to dashboard
-      // The ConfigProvider will handle fetching the config
-      navigate('/dashboard');
-    } catch (error: any) {
-      // Clear the API key on failure
-      api.setApiKey('');
-      
-      // Check if it's an unauthorized error
-      if (error.message && error.message.includes('401')) {
-        setError(t('login.invalidApiKey'));
+      navigate("/dashboard");
+    } catch (err: any) {
+      api.setApiKey("");
+      if (err.message && err.message.includes("401")) {
+        setError(t("login.invalidApiKey"));
       } else {
-        // For other errors, still allow access (restricted mode)
-        navigate('/dashboard');
+        navigate("/dashboard");
       }
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl">{t('login.title')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex justify-center py-8">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-            </div>
-            <p className="text-center text-sm text-gray-500">{t('login.validating')}</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl">{t('login.title')}</CardTitle>
-          <CardDescription>
-            {t('login.description')}
-          </CardDescription>
-        </CardHeader>
-        <form onSubmit={handleLogin}>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="apiKey">{t('login.apiKey')}</Label>
-              <Input
-                id="apiKey"
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={t('login.apiKeyPlaceholder')}
-              />
+    <div className="flex min-h-screen items-center justify-center px-6">
+      <div className="reveal-up w-full max-w-md">
+        <div className="mb-8 flex flex-col items-center gap-3 text-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-surface-elevated text-mint">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M2 8 L6 4 L6 6 L10 6 L10 4 L14 8 L10 12 L10 10 L6 10 L6 12 Z" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <h1 className="font-serif text-3xl tracking-tight text-text-strong">
+            {t("login.title")}
+          </h1>
+          <p className="max-w-xs text-[13px] text-text-mid">{t("login.description")}</p>
+        </div>
+
+        <div className="panel p-6">
+          {isLoading ? (
+            <div className="flex flex-col items-center gap-3 py-6">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-mint-dim border-t-transparent" />
+              <div className="text-data text-text-mid">{t("login.validating")}</div>
             </div>
-            {error && <div className="text-sm text-red-500">{error}</div>}
-          </CardContent>
-          <CardFooter>
-            <Button className="w-full" type="submit">
-              {t('login.signIn')}
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
+          ) : (
+            <form onSubmit={handleLogin} className="flex flex-col gap-4">
+              <div>
+                <label htmlFor="apiKey" className="label-micro">
+                  {t("login.apiKey")}
+                </label>
+                <div className="relative mt-2">
+                  <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-dim" />
+                  <input
+                    id="apiKey"
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder={t("login.apiKeyPlaceholder")}
+                    className="h-10 w-full rounded-md border border-hairline-strong bg-surface-sunken pl-9 pr-3 font-mono text-[13px] text-text-strong placeholder:text-text-dim outline-none transition focus:border-mint-dim"
+                  />
+                </div>
+                {error && <div className="mt-2 text-[12px] text-coral">{error}</div>}
+              </div>
+
+              <button
+                type="submit"
+                className="group inline-flex h-10 items-center justify-center gap-2 rounded-md bg-foreground text-[13px] font-medium text-background transition hover:bg-foreground/90"
+              >
+                {t("login.signIn")}
+                <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+              </button>
+            </form>
+          )}
+        </div>
+
+        <div className="mt-4 text-center font-mono text-[10.5px] tracking-[0.15em] uppercase text-text-dim">
+          Claude Code Router · v2.0
+        </div>
+      </div>
     </div>
   );
 }
