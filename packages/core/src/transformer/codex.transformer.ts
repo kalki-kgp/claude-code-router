@@ -99,12 +99,39 @@ export class CodexTransformer implements Transformer {
     delete request.temperature;
     delete request.max_tokens;
 
-    if (request.reasoning) {
-      request.reasoning = {
-        effort: request.reasoning.effort,
-        // @ts-ignore - summary is specific to this API
-        summary: "detailed",
-      };
+    // Parse effort suffix from the model slug (e.g. "gpt-5.5-high" -> "gpt-5.5" with effort=high).
+    // Codex only knows base slugs; effort goes in the reasoning.effort field.
+    const EFFORT_SUFFIXES = ["-xhigh", "-high", "-medium", "-low"];
+    let suffixEffort: string | null = null;
+    if (typeof request.model === "string") {
+      for (const sfx of EFFORT_SUFFIXES) {
+        if (request.model.endsWith(sfx)) {
+          suffixEffort = sfx.slice(1);
+          request.model = request.model.slice(0, -sfx.length);
+          break;
+        }
+      }
+    }
+
+    const finalEffort =
+      suffixEffort || (request as any).reasoning?.effort || provider?.reasoningEffort;
+    if (finalEffort) {
+      const reasoning: Record<string, any> = { effort: finalEffort };
+      // Summary must be opt-in: model default is "none", and "detailed" wastes output tokens
+      // on a stream Claude Code does not surface.
+      const summary =
+        (request as any).reasoning?.summary || provider?.reasoningSummary;
+      if (summary && summary !== "none") {
+        reasoning.summary = summary;
+      }
+      (request as any).reasoning = reasoning;
+    } else {
+      delete (request as any).reasoning;
+    }
+
+    // Pass through verbosity when the provider configures it (Codex models accept low|medium|high)
+    if (provider?.verbosity) {
+      (request as any).verbosity = provider.verbosity;
     }
 
     const model = request.model || "";
@@ -266,7 +293,8 @@ export class CodexTransformer implements Transformer {
       }
     }
 
-    request.parallel_tool_calls = false;
+    // Default to serial tool calls for safety; provider can opt-in to parallel via config
+    request.parallel_tool_calls = provider?.parallelToolCalls === true;
     (request as any).stream = true;
 
     const headers: Record<string, string> = {
