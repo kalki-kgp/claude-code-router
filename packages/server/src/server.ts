@@ -25,6 +25,7 @@ import {
 import fastifyMultipart from "@fastify/multipart";
 import AdmZip from "adm-zip";
 import { registerCodexAuthRoutes } from "./routes/codex-auth";
+import { registerCodexModeRoutes } from "./routes/codex-mode";
 
 export const createServer = async (config: any): Promise<any> => {
   const server = new Server(config);
@@ -84,6 +85,8 @@ export const createServer = async (config: any): Promise<any> => {
 
   // Register Codex OAuth callback routes
   await registerCodexAuthRoutes(app);
+  // Register Codex mode toggle routes (controls the `claude` shell wrapper)
+  await registerCodexModeRoutes(app);
 
   app.post("/v1/messages/count_tokens", async (req: any, reply: any) => {
     const { messages, tools, system, model } = req.body;
