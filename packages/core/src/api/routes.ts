@@ -212,6 +212,7 @@ async function processRequestTransformers(
 
   // Check if transformers should be bypassed (passthrough mode)
   bypass = shouldBypassTransformers(provider, transformer, body);
+  const skipBodyConversion = bypass || provider.transformer?.passthrough;
 
   if (bypass) {
     if (headers instanceof Headers) {
@@ -223,7 +224,7 @@ async function processRequestTransformers(
   }
 
   // Execute transformer's transformRequestOut method
-  if (!bypass && typeof transformer.transformRequestOut === "function") {
+  if (!skipBodyConversion && typeof transformer.transformRequestOut === "function") {
     const transformOut = await transformer.transformRequestOut(requestBody);
     if (transformOut.body) {
       requestBody = transformOut.body;
@@ -265,11 +266,17 @@ async function processRequestTransformers(
       ) {
         continue;
       }
-      requestBody = await modelTransformer.transformRequestIn(
+      const transformIn = await modelTransformer.transformRequestIn(
         requestBody,
         provider,
         context
       );
+      if (transformIn.body) {
+        requestBody = transformIn.body;
+        config = { ...config, ...transformIn.config };
+      } else {
+        requestBody = transformIn;
+      }
     }
   }
 
@@ -310,7 +317,7 @@ async function sendRequestToProvider(
   const url = config.url || new URL(provider.baseUrl);
 
   // Handle authentication in passthrough mode
-  if (bypass && typeof transformer.auth === "function") {
+  if ((bypass || provider.transformer?.passthrough) && typeof transformer.auth === "function") {
     const auth = await transformer.auth(requestBody, provider);
     if (auth.body) {
       requestBody = auth.body;
@@ -339,6 +346,11 @@ async function sendRequestToProvider(
     Authorization: `Bearer ${provider.apiKey}`,
     ...(config?.headers || {}),
   };
+
+  // Remove Bearer auth when x-api-key is present
+  if (requestHeaders["x-api-key"]) {
+    delete requestHeaders.Authorization;
+  }
 
   for (const key in requestHeaders) {
     if (requestHeaders[key] === "undefined") {
@@ -429,6 +441,7 @@ async function processResponseTransformers(
   context: any
 ) {
   let finalResponse = response;
+  const skipBodyConversion = bypass || provider.transformer?.passthrough;
 
   // Execute provider-level response transformers
   if (!bypass && provider.transformer?.use?.length) {
@@ -467,7 +480,7 @@ async function processResponseTransformers(
   }
 
   // Execute transformer's transformResponseIn method
-  if (!bypass && transformer.transformResponseIn) {
+  if (!skipBodyConversion && transformer.transformResponseIn) {
     finalResponse = await transformer.transformResponseIn(
       finalResponse,
       context
@@ -716,9 +729,8 @@ export const registerApiRoutes = async (
         throw createApiError("Provider not found", 404, "provider_not_found");
       }
       return {
-        message: `Provider ${
-          request.body.enabled ? "enabled" : "disabled"
-        } successfully`,
+        message: `Provider ${request.body.enabled ? "enabled" : "disabled"
+          } successfully`,
       };
     }
   );

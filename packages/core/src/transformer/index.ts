@@ -22,6 +22,7 @@ import { CodexTransformer } from "./codex.transformer";
 import { ForceReasoningTransformer } from "./forcereasoning.transformer";
 import { MistralTransformer } from "./mistral.transformer";
 import { ChromeOnDeviceTransformer } from "./chrome-on-device.transformer";
+import { OpencodeHeadersTransformer } from "./opencode-headers.transformer";
 
 export default {
   AnthropicTransformer,
@@ -48,4 +49,5 @@ export default {
   ForceReasoningTransformer,
   MistralTransformer,
   ChromeOnDeviceTransformer,
+  OpencodeHeadersTransformer,
 };

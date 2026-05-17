@@ -59,6 +59,8 @@ export class ProviderService {
                   }
                 }).filter((transformer) => typeof transformer !== 'undefined');
               }
+            } else if (key === 'passthrough') {
+              transformer.passthrough = providerConfig.transformer.passthrough;
             } else {
               if (Array.isArray(providerConfig.transformer[key]?.use)) {
                 transformer[key] = {
