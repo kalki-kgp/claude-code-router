@@ -69,6 +69,29 @@
 - **Parameter Clamping**: Session creation now automatically clamps `temperature` and `topK` to the model's supported limits (`maxTemperature`, `maxTopK`) to avoid API creation failures.
 - **Bridge Endpoints**: The bridge exposes `GET /v1/models` (list with `display_name` and `context_window.used_percentage` for statusline), `GET /v1/models/{name}` (individual model info for Claude Code's model discovery), `POST /v1/chat/completions` (streaming/non-streaming), and `GET /health`.
 
+## Architecture — Transformer Passthrough & Custom Header Injection
+- **Problem**: When CCR needs to talk to an Anthropic-style upstream that requires custom headers (e.g., `x-opencode-*`, `x-api-key`), neither existing mode works:
+  - **Bypass mode** (`use: ["Anthropic"]` only) forwards all client headers and preserves body format, but you cannot chain provider-level transformers — no custom headers can be injected.
+  - **Normal mode** (multiple transformers) runs provider-level transformers but `transformRequestOut` converts the body to OpenAI format, which the Anthropic upstream rejects.
+- **Resolution**: Added a per-provider `passthrough: true` config flag that decouples body format conversion from provider-level transformer execution. The flow:
+  - `shouldBypassTransformers` returns `false` (multiple transformers present), so provider-level `transformRequestIn` runs and injects custom headers.
+  - `skipBodyConversion` (bypass || passthrough) gates only the endpoint transformer's `transformRequestOut`/`transformResponseIn`, keeping the body in raw Anthropic format.
+  - `sendRequestToProvider` also calls `transformer.auth()` in passthrough mode to inject `x-api-key`.
+- **Key insight**: `bypass` gates provider-level transformers (line 238: `!bypass && provider.transformer?.use`). The fix was to introduce a separate `skipBodyConversion` flag so the endpoint transformer's body conversion is independently controllable.
+- **Auth header conflict**: When `x-api-key` is injected, remove the hardcoded `Authorization: Bearer` to prevent "multiple credentials" errors on strict gateways.
+- **Client header forwarding**: Only full bypass mode forwards original client headers. Passthrough mode does NOT forward them — only transformer-injected headers are sent. To add client headers to passthrough, populate `config.headers` from the original Fastify request headers before transformer execution.
+- **Config example**:
+  ```jsonc
+  {
+    "transformer": {
+      "use": ["Anthropic", "opencode-headers"],
+      "passthrough": true
+    }
+  }
+  ```
+- **Transformer naming**: Use the `name` field value (e.g., `"Anthropic"`), not the class name (`"AnthropicTransformer"`), in config arrays.
+- **Files modified**: `packages/core/src/api/routes.ts` (4 changes), `packages/core/src/services/provider.ts` (1 change)
+
 ## Development & Tooling
 - **Dependency Scoping**: `pino` is provided by Fastify in the server package but is not a direct dependency of the `core` package. Direct imports of `pino` in `core` will cause build failures; use the passed-in `logger` instance or native `fs` for separate log files.
 - **Response Cloning**: When implementing background logging for responses, use `response.clone()` to avoid consuming the original stream, which would otherwise prevent the transformer from processing the output.
