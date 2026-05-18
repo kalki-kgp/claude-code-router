@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { Transformer } from "@/types/transformer";
 
 const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -16,7 +16,7 @@ export class OpencodeHeadersTransformer implements Transformer {
     provider: any,
     context: any
   ): Promise<Record<string, any>> {
-    const conversationId = context?.req?.sessionId || "default";
+    const conversationId = context?.req?.sessionId || this.fingerprintConversation(request, context);
     const sessionId = this.getOrCreateSessionId(conversationId);
     const requestId = this.generateId("msg");
 
@@ -36,6 +36,19 @@ export class OpencodeHeadersTransformer implements Transformer {
         },
       },
     };
+  }
+
+  private fingerprintConversation(request: any, context: any): string {
+    const body = request.body || request;
+    const model = body.model || "";
+    const msgs = body.messages || [];
+    const sample = JSON.stringify(msgs.slice(0, 3));
+    const ip = context?.req?.headers?.["x-forwarded-for"] || context?.req?.ip || "";
+    const ua = context?.req?.headers?.["user-agent"] || "";
+    return createHash("sha256")
+      .update(`${model}|${ip}|${ua}|${sample}`)
+      .digest("hex")
+      .slice(0, 32);
   }
 
   private getOrCreateSessionId(key: string): string {

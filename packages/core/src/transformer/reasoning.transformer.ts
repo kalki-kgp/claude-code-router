@@ -36,6 +36,11 @@ export class ReasoningTransformer implements Transformer {
         budget_tokens: request.reasoning.max_tokens,
       };
       request.enable_thinking = true;
+    } else if (request.model) {
+      const modelId = String(request.model);
+      if (modelId.startsWith("deepseek")) {
+        request.enable_thinking = true;
+      }
     }
 
     prepareReasoningReplay(request, provider, context);
