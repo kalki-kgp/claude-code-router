@@ -28,6 +28,11 @@
 - **Reasoning Replay Is Mandatory**: When DeepSeek thinking mode remains enabled across tool-use turns, prior assistant tool-call messages must carry their original `reasoning_content` back to the API. Replaying only the tool calls and visible assistant text is not enough.
 - **Repair Source Order**: The safest replay order is: keep existing `reasoning_content` if present, otherwise derive it from `thinking.content`, otherwise restore it from a local cache keyed by conversation scope plus tool-call identity/signature.
 - **Cache Population Point**: Populate the cache from provider responses, not from user-facing display chunks alone. For streamed responses, accumulate reasoning text plus the eventual assistant content/tool calls and store the final assistant message shape on stream completion.
+- **LiteLLM `_sanitize_empty_text_content` Placeholder (DeepSeek via `anthropic/` prefix)**: When routing Codex → LiteLLM (`anthropic/` prefix) → CCR → DeepSeek, the placeholder `[System: Empty message content sanitised to satisfy protocol]` can appear in responses. The root cause: Codex sends tool-call-only assistant turns as `{"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": ""}]}` via the Responses API. LiteLLM's Responses→Chat conversion produces an assistant message with an empty text block and no `tool_calls` field, which bypasses the original `tool_calls` guard and triggers the placeholder replacement.
+  - **Fix (factory.py)**: In `litellm/litellm_core_utils/prompt_templates/factory.py::_sanitize_empty_text_content`, the role gate `not in ["user", "assistant"]` is changed to `!= "user"`. The Anthropic conversion loop (`anthropic_messages_pt`) already drops empty text blocks for assistant messages — the placeholder was redundant.
+  - **Fix (transformation.py)**: In `litellm/responses/litellm_completion_transformation/transformation.py`, the message conversion skips empty text blocks during Responses API → Anthropic format conversion, preventing them from reaching the sanitization layer.
+  - **Patched files**: `litellm-patch/factory.py`, `litellm-patch/transformation.py` (BerriAI/litellm on GitHub)
+  - **Mount**: Volume-mount over the installed paths in the LiteLLM container (paths depend on Python venv). Restart only — no rebuild needed.
 
 ## Architecture
 - **Thin Transformer Pattern**: For maintainability, keep transformer classes as thin wrappers that handle high-level provider config and delegate all data transformation logic to a dedicated utility file (e.g., `gemini.util.ts`, `mistral.util.ts`).
@@ -68,6 +73,35 @@
 - **Tool Result Labeling**: Tool outputs are explicitly labeled as "Tool Result:" in the turn prompt, and the model is instructed to check for these existing results before initiating new tool calls.
 - **Parameter Clamping**: Session creation now automatically clamps `temperature` and `topK` to the model's supported limits (`maxTemperature`, `maxTopK`) to avoid API creation failures.
 - **Bridge Endpoints**: The bridge exposes `GET /v1/models` (list with `display_name` and `context_window.used_percentage` for statusline), `GET /v1/models/{name}` (individual model info for Claude Code's model discovery), `POST /v1/chat/completions` (streaming/non-streaming), and `GET /health`.
+
+## Architecture — Transformer Passthrough & Custom Header Injection
+- **Problem**: When CCR needs to talk to an Anthropic-style upstream that requires custom headers (e.g., `x-opencode-*`, `x-api-key`), neither existing mode works:
+  - **Bypass mode** (`use: ["Anthropic"]` only) forwards all client headers and preserves body format, but you cannot chain provider-level transformers — no custom headers can be injected.
+  - **Normal mode** (multiple transformers) runs provider-level transformers but `transformRequestOut` converts the body to OpenAI format, which the Anthropic upstream rejects.
+- **Resolution**: Added a per-provider `passthrough: true` config flag that decouples body format conversion from provider-level transformer execution. The flow:
+  - `shouldBypassTransformers` returns `false` (multiple transformers present), so provider-level `transformRequestIn` runs and injects custom headers.
+  - `skipBodyConversion` (bypass || passthrough) gates only the endpoint transformer's `transformRequestOut`/`transformResponseIn`, keeping the body in raw Anthropic format.
+  - `sendRequestToProvider` also calls `transformer.auth()` in passthrough mode to inject `x-api-key`.
+- **Key insight**: `bypass` gates provider-level transformers (line 238: `!bypass && provider.transformer?.use`). The fix was to introduce a separate `skipBodyConversion` flag so the endpoint transformer's body conversion is independently controllable.
+- **Auth header conflict**: When `x-api-key` is injected, remove the hardcoded `Authorization: Bearer` to prevent "multiple credentials" errors on strict gateways.
+- **Client header forwarding**: Only full bypass mode forwards original client headers. Passthrough mode does NOT forward them — only transformer-injected headers are sent. To add client headers to passthrough, populate `config.headers` from the original Fastify request headers before transformer execution.
+- **Config example**:
+  ```jsonc
+  {
+    "transformer": {
+      "use": ["Anthropic", "opencode-headers"],
+      "passthrough": true
+    }
+  }
+  ```
+- **Transformer naming**: Use the `name` field value (e.g., `"Anthropic"`), not the class name (`"AnthropicTransformer"`), in config arrays.
+- **Files modified**: `packages/core/src/api/routes.ts` (4 changes), `packages/core/src/services/provider.ts` (1 change)
+
+## LLM Provider Integration (Codex / ChatGPT Backend)
+- **Effort Passthrough Over Inference**: Claude Code now sends `thinking: {type: "adaptive"}` with `output_config: {effort: "high"}` instead of the old `budget_tokens` format. Reading `request.output_config?.effort` (with fallback to `request.effort`) passes the user's `/effort` setting through directly. Avoid mapping `budget_tokens` to effort levels — effort is a behavioral signal, not derivable from a token cap, and `getThinkLevel(undefined)` only returned `"high"` by accident.
+- **Provider Config Validation**: When exposing provider-level options (e.g., `parallelToolCalls`, `verbosity`, `reasoningSummary`), validate against a whitelist of acceptable values. Any value outside the whitelist should be treated as unset (parameter omitted) to avoid sending invalid params that the upstream API would reject.
+- **Model-Slug Suffixes Are Unnecessary**: Parsing effort from model name suffixes (`-high`, `-xhigh`) adds complexity for no benefit in this codebase. Effort comes from Claude Code's `/effort` setting, not from model naming conventions.
+- **Active Maintenance Awareness**: Claude Code is under active development and its API request format can change (e.g., `budget_tokens` → `output_config.effort`). If a passthrough seems to work only for certain values, check the actual request body in the logs rather than assuming the mapping is correct.
 
 ## Development & Tooling
 - **Dependency Scoping**: `pino` is provided by Fastify in the server package but is not a direct dependency of the `core` package. Direct imports of `pino` in `core` will cause build failures; use the passed-in `logger` instance or native `fs` for separate log files.
